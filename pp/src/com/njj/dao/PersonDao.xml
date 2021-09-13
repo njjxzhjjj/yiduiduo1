@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--namespace:映射文件的命名空间，规范是映射文件的全路径-->
+<!--作用:是一- 个路径，用来查找下面的id-->
+
+<mapper namespace="com.njj.dao.PersonDao">
+   <resultMap id="BaseResultMap" type="com.njj.bean.Person">
+       <!--下面的标签要映射到实体类-->
+       <!--id只有1个-->
+       <!--column.是数据库中的  列名 很多事下划线-->
+       <!--property是实体类中的属性  一般是驼峰-->
+       <id column="id" property="id"/>
+       <result column="name" property="name"/>
+       <result column="gender" property="gender"/>
+       <result column="birthday" property="birthday"/>
+       <result column="address" property="address"/>
+       <result column="score" property="score"/>
+
+   </resultMap>
+    <!--MySQL片段 显示-->
+    <sql id="allColumn">
+        id,name,gender,birthday,address
+    </sql>
+
+    <!--隐藏生日的 sql片段-->
+    <sql id="birthdayColumn">
+        id,name,gender,address
+    </sql>
+
+
+
+    <!--com.njj.dao.PersonDao+select-->
+    <!--全查-->
+    <select id="selectAll" resultMap="BaseResultMap">
+        select * from person
+    </select>
+
+
+    <!--sql语句带参数的其实就是指where语句- paramter :参数的type类型 （int string map set list）-->
+    <!--select * from person where gender =2;-->
+    <select id="selectPersonBySex" resultMap="BaseResultMap" parameterType="int">
+        select <include refid="birthdayColumn"/> from person where gender = #{sex}
+    </select>
+
+
+    <!--查询总条数  select count(*) from person;  14条数据是一个 int类型-->
+    <select id="selectCount"  resultType="long">
+        select count(*) from person
+    </select>
+
+
+
+    <!--查询女生总条数有几个： select count(*) from person where sex=? score>100;-->
+    <!--当前端传多个参数的时候 你需要看这个参数是否是同一个类中的属性(单表)，如果是那么可以直接用这个类做参数，
+    如果不是同一个类可以手写一个实体类（dto）（多表）或者使用map做参数-->
+    <select id="selestCountByParam01" resultType="long" parameterType="com.njj.bean.Person">
+        select count(*) from person where gender = #{gender} and score > #{score}
+    </select>
+
+
+
+    <!--查询性别是女  生日小于2020-10-14 的人是
+    select * from person where gender = #{gender} and birthday >#{birthday}
+    -->
+    <select id="selestCountByParam02" resultMap="BaseResultMap" parameterType="map">
+        <![CDATA[  select * from person where gender = #{gender} and birthday  < #{birthday} ]]>
+    </select>
+
+
+    <!--查询 分值最高的人是谁 ？子查询
+    select * from person where score=(select max(score) from person-->
+    <select id="selestPersonByZi" resultMap="BaseResultMap">
+        select * from person where score=(select max(score) from person)
+    </select>
+
+
+    <!--所有男生和女生的平均分值 各是多少 select gender,avg(score) as vagScore from person GROUP BY gender;-->
+    <select id="selestAvgScore" resultType="com.njj.bean.PersonDto">
+        select gender,avg(score) as vagScore from person GROUP BY gender
+    </select>
+
+
+    <!--男生和女生的平均分值 大于200的值  select gender,avg(score) from person GROUP BY gender HAVING avg(score)>200;-->
+    <select id="selestAvgScoreParam" resultType="com.njj.bean.PersonDto" parameterType="int">
+        select gender,avg(score) as vagScore from person GROUP BY gender HAVING avg(score) > #{score}
+    </select>
+
+    <!--/map可以接收任何的数据，常见于多表-->
+    <select id="selestAvgScoreParam02" resultType="map" parameterType="int">
+        select gender,avg(score) as vagScore from person GROUP BY gender HAVING avg(score) > #{score}
+    </select>
+
+
+    <!--查询  姓孙的  select * from person where name like '孙%'
+    '孙%' =====  '${name}%' 第一种方式：$去拼接，但是这样做不好，因为是拼接的，sql编译的时候没有?,容易被黑客注入不安全-->
+
+    <select id="selectPersonByLike" resultMap="BaseResultMap" parameterType="string">
+        select * from person where name like '${name}%'
+    </select>
+
+    <!--第二种 使用sql语句concat  链接 可以编译 可以用这个-->
+    <select id="selectPersonByLike02" resultMap="BaseResultMap" parameterType="string">
+         select * from person where name like concat ('%',#{name},'%')
+    </select>
+
+
+    <!--查询  姓孙的  第三种方式 可以编译 可以用这个 -->
+    <select id="selectPersonByLike03" resultMap="BaseResultMap" parameterType="string">
+        select * from person where name like "%"#{name}"%"
+    </select>
+
+    <!--添加 一条数据  insert into person (id,name,gender,birthday,address) values(null)-->
+    <!--场景   学生 班级1   当我 新增张三 cid  李四 cid 王五 cid 大数据 班级表-->
+    <!--插入数据之后  自动上报我们主键id   重要！！！！  order执行方法 之前之后-->
+    <!--selectKey一般多表 级联插入的时候 需要获取刚刚插入点数据的主键id的时候，用到的-->
+    <!--keyProperty是指的主键的id  -->
+    <!--order 自增的主键 是数据插入之后诞生的还是插入之前诞生的  执行方法 MySQL after Oracle之前-->
+    <!--resultType.主键id的数据类型 ，一般int ，分布式是string雪花算法-->
+    <!--select LAST_ INSERT_ ID()查询最后插入的主键id-->
+    <insert id="insertPerson" parameterType="com.njj.bean.Person">
+      <selectKey keyProperty="id" order="AFTER" resultType="int">
+          select LAST_INSERT_ID()
+      </selectKey>
+        insert into person (id,name,gender,birthday,address,score) values (null,#{name},#{gender},#{birthday},#{address},#{score})
+    </insert>
+
+
+
+
+    <!--删除一条数据 delete from person-->
+    <delete id="deletePersonById" parameterType="int">
+        delete from person where id=#{id}
+    </delete>
+
+
+
+    <!--动态sql 之 动态查询  通俗讲就是select + if 判断-->
+    <!--动态sql标签  有9个 where 1、删除第一个and 2、代替了 原始sql 种的where where常和if搭配-->
+    <!--where里需要吧方法里的参数（map  实体类）的属性 写全-->
+    <!--if的注意事项： test="gender" 是指的  实体类中的属性驼峰的 -->
+    <select id="dongTaiSelect" resultMap="BaseResultMap" parameterType="com.njj.bean.Person">
+        select *from person p
+        <where>
+            <if test="id !=null and id != '' ">
+                p.id=#{id}
+            </if>
+            <if test="name !=null and name != '' ">
+              and  p.name=#{name}
+            </if>
+
+            <if test="gender !=null and gender != '' ">
+              and p.gender=#{gender}
+            </if>
+
+            <if test="birthday !=null and birthday != '' ">
+              and  p.birthday=#{birthday}
+            </if>
+
+            <if test="address !=null and address != '' ">
+                and  p.address=#{address}
+            </if>
+
+            <if test="score !=null and score != '' ">
+                and  p.score > #{score}
+            </if>
+        </where>
+    </select>
+
+    <!--动态修改 update person set xx=xx where id=?-->
+    <!--set标签-->
+    <update id="dongTaiUpdate" parameterType="com.njj.bean.Person">
+        update person p
+          <set>
+              <if test="name !=null and name != '' ">
+                   p.name=#{name},
+              </if>
+
+              <if test="gender !=null and gender != '' ">
+                   p.gender=#{gender},
+              </if>
+
+              <if test="birthday !=null  ">
+                   p.birthday=#{birthday},
+              </if>
+
+              <if test="address !=null and address != '' ">
+                    p.address=#{address},
+              </if>
+
+              <if test="score !=null and score != '' ">
+                   p.score = #{score}
+              </if>
+          </set>
+          where
+          p.id=#{id}
+    </update>
+
+    <!--批量删除 delete from person where id in (1,2,3)-->
+    <!--(1,2,3)  把他当做一个集合看待 ids-->
+    <delete id="piLiangDel" parameterType="map">
+         delete from person where id in
+              <foreach collection="ids" open="(" item="id" separator="," close=")" index="index">
+                  #{id}
+              </foreach>
+    </delete>
+
+    <!--多表的关系需要程序员自定文个-一个reslul tMap标签-->
+    <resultMap id="selectOrdersByPersonIdRM" type="com.njj.bean.Person" extends="BaseResultMap">
+       <!-- <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="gender" property="gender"/>
+        <result column="birthday" property="birthday"/>
+        <result column="address" property="address"/>
+        <result column="score" property="score"/>-->
+                  <collection property="ordersList" ofType="com.njj.bean.Orders">
+                      <id column="orders_id" jdbcType="INTEGER" property="ordersId" />
+                      <result column="person_id" jdbcType="INTEGER" property="personId" />
+                      <result column="total_price" jdbcType="DOUBLE" property="totalPrice" />
+                      <result column="addr" jdbcType="VARCHAR" property="addr" />
+                  </collection>
+    </resultMap>
+
+
+
+
+    <!--一对多-->
+    <select id="selectOrdersByPersonId" resultMap="selectOrdersByPersonIdRM" parameterType="int">
+        select * from person p
+        join orders o
+        on p.id =o.person_id
+        where p.id=#{id}
+    </select>
+    <select id="dongTaiselectOrdersByPerson" resultType="java.util.Map" parameterType="map">
+        select * from person p,orders o
+        <where>
+            p.id=o.person_id
+            <if test="id != null and id != '' ">
+                and p.id = #{id}
+            </if>
+            <if test="name != null and name != '' ">
+                and   p.name = #{name}
+            </if>
+            <if test="gender != null and gender != '' ">
+                and   p.gender = #{gender}
+            </if>
+            <if test="birthday != null ">
+                and   p.birthday = #{birthday}
+            </if>
+            <if test="address != null and address != '' ">
+                and   p.address = #{address}
+            </if>
+            <if test="score != null and score != '' ">
+                and   p.score > #{score}
+            </if>
+
+            <if test="orders_id != null and orders_id != '' ">
+                and o.orders_id = #{orders_id}
+            </if>
+            <if test="person_id != null and person_id != '' ">
+                and o.person_id = #{person_id}
+            </if>
+            <if test="total_price != null and total_price != '' ">
+                and o.total_price = #{total_price}
+            </if>
+            <if test="addr != null and addr != '' ">
+                and o.addr = #{addr}
+            </if>
+        </where>
+    </select>
+</mapper>
